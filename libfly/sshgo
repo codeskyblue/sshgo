@@ -1,0 +1,62 @@
+#!/bin/bash
+#
+#
+PATH="/usr/local/bin:/usr/bin:/bin"
+export PATH
+
+PROGRAM=`basename $0`
+
+CONF="$HOME/.sshgo.conf"
+test -f $CONF || touch $CONF
+
+if test $# -eq 0
+then
+    echo "Usage: $PROGRAM <alias>"
+    exit 1
+fi
+
+if grep "$1" $CONF >/dev/null
+then
+    host=`grep "$1" $CONF | head -n1`
+    user=$USER
+    echo "Found: $host"
+else
+    read -p "Enter fullname of host: " host
+    user=$USER
+    
+    if ! ping -c1 "$host" &>/dev/null
+    then
+        echo "Host($host) not found"
+        exit 1
+    fi
+    
+    echo $host >> $CONF
+fi
+
+if test -f $HOME/.ssh/id_rsa.pub -a -f $HOME/.ssh/id_rsa
+then
+    echo "Found rsa key"
+else
+    ssh-keygen -t rsa
+fi
+
+if ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o PasswordAuthentication=no $host 'echo test connection'
+then
+    ssh -l $user $host
+else
+    read -p "Enter password for the first time: " passwd
+    if sshpass -p "$passwd" ssh -l $user $host 'echo test password' 
+    then
+        echo "OK password"
+    else
+        echo "Wrong password"
+        exit 2
+    fi
+    export SSHPASS=$passwd
+    sshpass -e scp $HOME/.ssh/id_rsa.pub $user@$host:/tmp
+    sshpass -e ssh -l $user $host 'cat /tmp/id_rsa.pub >> $HOME/.ssh/authorized_keys'
+    sshpass -e ssh -l $user $host 'rm -f /tmp/id_rsa.pub'
+
+    ssh -l $user $host
+fi
+

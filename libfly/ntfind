@@ -1,0 +1,17 @@
+#!/bin/sh
+#
+# find which port are listening
+#
+
+PATH=/usr/local/bin:/usr/bin:/bin
+export PATH
+
+PROGRAM=`basename $0`
+
+if test $# -ne 1
+then
+    echo "Usage: $PROGRAM patten"
+    exit 0
+fi
+
+netstat -anp | grep -v $PROGRAM | grep -v grep | grep --color=auto $1

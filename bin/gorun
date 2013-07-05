@@ -1,0 +1,126 @@
+#!/bin/bash
+# run shell script in remote machine
+#
+
+#trap "echo ERROR OCCUR in line $LINENO" ERR
+
+FULLNAME=`readlink -f $0`
+source "$(dirname ${FULLNAME})/func.inc.sh"
+
+usage(){ cat <<EOF
+Usage: 
+        $PROGRAM 
+            [ -a attachment [-a ...]] 
+            [ -h hostname   [-h ...]]
+            [ -f host.list ]
+            [program] [params ...]
+
+        if no program specified, than read from stdin
+        if host are >=2, then for count(host) process to run 
+EOF
+}
+
+
+VERSION='1.5'
+# 1.5   change gocp to gcp
+
+#
+# Parse parameters
+#
+attachment= hostname= hostfile=
+
+while test $# -gt 0
+do
+    case $1 in
+    -a)     shift
+            attachment="$attachment $1" ;;
+    --help) usage_and_exit 0 ;;
+    -h)     shift
+            hostname="$hostname $1" ;;
+    -f)     shift
+            hostfile="$1" ;;
+    -v|--version) version exit 0 ;;
+    -*)    error "Unrecognized option: $1" ;;
+    *) break ;;
+    esac
+    shift
+done
+
+if test $# -lt 1
+then
+    usage_and_exit 1
+fi
+
+#
+# parse hostfile
+#
+if test -n "$hostfile"
+then
+    hostname="$hostname `cat $hostfile | sed "s/#.*//g" | grep -v "^$"`" 
+fi
+
+#
+# for compatible with old grun
+#
+if test -z "$hostname"
+then
+    hostname=$1 
+    shift
+fi
+
+#
+# read from stdin
+#
+if test $# -ge 1
+then
+    file=$1 ; shift
+    param=$@   # this still have some problem, for scp not support space in one argument
+else
+    file=$(mktemp)
+    trap "/bin/rm -f $file" EXIT
+    cat >> $file
+fi
+
+die(){  
+    printf "GRUN FATAL: $1 " 1>&2
+    shift
+    echo "$@" 1>&2
+}
+
+main(){
+    local ok tmpdir tmprunfile item addr mac exitcode
+    mac=${1:?}
+    tmpdir=$($GO $mac mktemp -d /tmp/gorun.tmp.XXXXXXXX)
+    test $? -ne 0 && die "$mac" "fail exec command" && return 1
+
+    looper
+    exitcode=$?
+
+    $GO $mac /bin/rm -fr $tmpdir
+    return $exitcode
+}
+
+looper(){
+    local tmprunfile="$tmpdir/$(basename $file)"
+
+    # copy attatchment and runfile
+    for item in $attachment $file
+    do
+        addr=$(abspath $item)
+        $GOCP -q "$addr" "$mac:$tmpdir" &>/dev/null
+        test $? -ne 0 && die "$mac" fail to download $item && return 1
+    done
+
+    $GO "$mac" chmod +x "$tmprunfile"
+    $GO "$mac" "$tmprunfile" $param
+    local ret=$?
+    test $ret -ne 0 && die "host($mac)" exitcode is $ret && return 1
+}
+
+for mac in $hostname
+do
+    main $mac &
+done
+wait
+exit $EXITCODE
+

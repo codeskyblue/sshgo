@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "case name $0"
+echo "will return 1"
+exit 1

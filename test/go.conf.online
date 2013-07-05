@@ -1,0 +1,62 @@
+[personal setting]
+userpass = work,mysqlmysql
+
+[shanshan]
+userpass = work,youzhuteng
+hostname = cq01-testing-oped2005-bbtocq.vm.baidu.com
+
+[PLAT-QA]
+userpass = work,bos-testing!!!
+userpass = root,bos-testing!!!
+# yx
+hostname = yx-testing-oped2001.vm.baidu.com
+hostname = yx-testing-oped2002.vm.baidu.com
+hostname = yx-testing-oped2003.vm.baidu.com
+hostname = yx-testing-oped2004.vm.baidu.com
+hostname = yx-testing-oped2005.vm.baidu.com
+hostname = yx-testing-oped2006.vm.baidu.com
+hostname = yx-testing-oped2007.vm.baidu.com
+hostname = yx-testing-oped2008.vm.baidu.com
+hostname = yx-testing-oped2009.vm.baidu.com
+hostname = yx-testing-oped2010.vm.baidu.com
+# db
+hostname = db-testing-oped3001.db01.baidu.com
+hostname = db-testing-oped3002.db01.baidu.com 
+hostname = db-testing-oped3003.db01.baidu.com    #this is ssx's machine
+# bb
+hostname = cq01-testing-oped2001-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2002-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2003-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2004-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2006-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2007-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2008-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2009-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2010-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2011-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2012-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2013-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2014-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2015-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2016-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2017-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2018-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2019-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2020-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2021-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2022-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2023-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2024-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2025-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2026-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2027-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2028-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2029-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2030-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2031-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2032-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2033-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2034-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2035-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2036-bbtocq.vm.baidu.com
+hostname = cq01-testing-oped2037-bbtocq.vm.baidu.com

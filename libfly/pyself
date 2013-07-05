@@ -1,0 +1,27 @@
+#!/bin/sh
+#
+# Dependency:
+#       makesingle cxfreeze
+#
+#
+#
+
+if test $# -lt 1
+then
+    echo "Usage: $PROGRAM xxx.py [other file1, file2]"
+    exit 1
+fi
+
+tmpdir=`mktemp -d`
+trap "/bin/rm -fr $tmpdir" EXIT
+
+pyfile=$1
+shift
+
+cxfreeze $pyfile.py --target-dir ${tmpdir}
+mv $tmpdir/$pyfile $tmpdir/$pyfile.run
+for f in $@
+do
+    cp -rv $f $tmpdir
+done
+makesingle $tmpdir $pyfile.run $pyfile

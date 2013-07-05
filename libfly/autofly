@@ -1,0 +1,441 @@
+#!/usr/bin/env python
+# @author   sunshengxiang
+# @date     2012-11-16
+# usage:
+#        PROGRAM fil1 file2 dir1 dir2
+# file format:
+#        [0-9]+.*\.py
+#
+__version__ = '1.1'
+# 1.1 fix -d not working bug, and -t bug
+
+import re
+import sys
+import platform
+# python version test
+version = platform.python_version()
+if not re.match(r'2.[6-9].\d', version):
+    print 'Need python version: 2.6.0 +, But current version: %s' %(version)
+    sys.exit(1)
+
+import os
+import time
+import getopt
+import subprocess
+import threading
+import signal
+import base64
+from Queue import Queue
+from xml.dom.minidom import Document
+
+# for cxfreeze use
+if hasattr(sys, 'frozen'):    __file__ = sys.executable
+
+def dirname(path):
+    dir = os.path.dirname(path)
+    if dir == "": dir = '.'
+    return dir
+
+abspath = os.path.abspath
+pjoin   = os.path.join
+b64encode = base64.b64encode
+
+def readlinkf(link_file):
+    ''' return absolupath of link file destination '''
+    if not os.path.islink(link_file): return link_file
+    p = os.readlink(link_file)
+    if not os.path.isabs(p):
+        p = pjoin(dirname(link_file), p)
+    return readlinkf(p)
+
+# follow link
+__file__ = readlinkf(__file__)
+
+
+runner = {'.py': 'python', '.sh': '/bin/sh', '.php': 'php'}
+logdir = None
+
+records         = [] # store as [(1:FAIL, 'case1'), (0:SUCC, 'case2')]
+debug           = False # can be set to true, by -d option
+color_flag      = 'auto' # | None
+email           = None
+xmlfile         = None
+htmlfile        = None
+caselist_file   = None
+begin_time     = time.time()
+
+def DEBUG(str):
+    if debug:
+        print "--- debug ---\n>>> ", str
+    
+def colored(str, color = 'black'):
+    ''' terminal color '''
+    if color_flag == None:
+        return str
+    if   color == 'red':        return '\033[1;31m%s\033[1;m' % (str)
+    elif color == 'green':      return '\033[1;32m%s\033[1;m' % (str) 
+    elif color == 'yellow':     return '\033[1;33m%s\033[1;m' % (str) 
+    elif color == 'blue':       return '\033[1;34m%s\033[1;m' % (str) 
+    elif color == 'magenta':    return '\033[1;35m%s\033[1;m' % (str) 
+    elif color == 'cyan':       return '\033[1;36m%s\033[1;m' % (str) 
+    elif color == 'white':      return '\033[1;37m%s\033[1;m' % (str) 
+    else:
+        return str
+
+def tee_print(pipe, ret = {}, key = 'stdout', color = 'black'):
+    ''' return value will be set to ret[key], lock is necessary '''
+    while True:
+        if key == 'stdout':
+            c = pipe.readline()
+            if c == '': break
+            if debug: sys.stdout.write(colored(c, color))
+        else:
+            c = pipe.readline()
+            if c == '': break
+            if debug: sys.stdout.write(colored(c, color))
+        ret[key] = ret.get(key, '') + c 
+                
+def shellexec(filename):
+    ''' 
+    execute filename
+    according to header #! call program, or according file ext
+    return (exitcode, outstr)
+    '''
+    name,ext = os.path.splitext(filename)
+    start_time = time.time()
+    
+    p = subprocess.Popen([runner[ext], filename], 
+            stdin  = subprocess.PIPE, 
+            stdout = subprocess.PIPE, 
+            stderr = subprocess.PIPE)
+    ret = {}
+    ret['stdout'] = ''
+    ret['stderr'] = ''
+
+    t1 = threading.Thread(target = tee_print, args = (p.stdout, ret, 'stdout', 'cyan'))
+    t2 = threading.Thread(target = tee_print, args = (p.stderr, ret, 'stderr', 'red'))
+    t1.start(); t2.start()
+    t1.join();  t2.join()
+
+    p.wait()
+    status = p.returncode
+    DEBUG('return %d' % status)
+
+    time_used = time.time() - start_time
+    ret['exitcode'] = status
+    ret['time'] = time_used
+    return ret
+
+def runtest(casefile):
+    ''' case: case filename '''
+    global results
+
+    file_content = open(casefile).read()
+
+    basename = os.path.basename(casefile)
+    name,ext = os.path.splitext(basename)
+    assert ext in runner
+    # End of verify case settings
+
+    # case without 't' suffix 
+    runfile = casefile
+    outfile = name + '.out'
+
+    DEBUG('[filename]: %s' %casefile)
+    
+    # start to run case
+    fileret = shellexec(runfile)
+    output = fileret.get('stdout')
+    
+    status = 0
+    if fileret.get('exitcode') != 0:
+        status = 1
+
+    def pstatus(n):
+        if n == 0: return 'PASS'
+        else:      return 'FAIL'
+
+    if status == 0: 
+        strstatus = colored('PASS', 'green')
+    else:           
+        strstatus = colored('FAIL', 'red')
+
+    # console output
+    length = 70
+    display_name = runfile[0:length]
+    if len(basename) > length: display_name = display_name[:length-3]+'...'
+    format_string = '%-'+str(length)+'s >>'
+
+    #lock.accuire()
+    print >>sys.stdout, format_string %(display_name), '%-5s%6.1fs' %(strstatus, fileret['time'])
+    #lock.release()
+        
+    # record results
+    records.append((status, {
+        'name': casefile, 
+        'fileret': fileret, 
+        'file_content': file_content,
+        'result' : pstatus(status),
+        'desc' : strstatus,
+        'stdout' : fileret.get('stdout'),
+        'stderr' : fileret.get('stderr'),
+        }) )
+
+
+def getfiles(path, file_handler = None, dir_handler = None): 
+    ''' get file list from path '''
+    files = []
+    if os.path.isfile(path):
+        if not file_handler or file_handler(path):
+            files.append(path)
+    elif os.path.isdir(path):
+        if not dir_handler or dir_handler(path):
+            try:
+                for item in os.listdir(path):
+                    itemsrc = os.path.join(path, item)
+                    files += getfiles(itemsrc, file_handler, dir_handler)
+            except:
+                pass
+    return files
+
+
+def usage_and_exit(exitcode = 0):
+    program = os.path.basename(sys.argv[0])
+    print 'USAGE'
+    print '\t', program, 'Options  file1, fil2, dir1, dir2 ...'
+    print '\t\t', 'File name must be such format:  [0-9]+.*.py,  start with number endwith .py'
+    print 'OPTIONS'
+    print '\t', '-d, --debug                    : output debug info'
+    print '\t', '-c, --color=xxx                : <auto | none>'
+    print '\t', '-f, --file=caselist            : caselist file, one line store one case name' 
+    print '\t', '-t, --thread=n                 : how many thread when run cases'
+    print '\t', '-E, --email=someone@xx         : send results by email'
+    print '\t', '-X, --output-xml=spec.xml      : output an xml file'
+    print '\t', '-H, --output-html=spec.html    : output an html file'
+    print 'EXAMPLE'
+    print '\t', program, '123456-hello.py'
+    sys.exit(exitcode)
+
+def reportfile(filename, ext, content):
+    ''' write content to file, help manage extention '''
+    if filename != None:
+        if not os.path.splitext(filename)[1] == ext:
+            filename += ext
+        if not os.path.exists(dirname(filename)):
+            os.makedirs(dirname(filename))
+        open(filename, 'w').write(content)
+    else:
+        return content
+
+def reporthtml(filename = None):
+    ''' generate html '''
+    pathjoin = os.path.join
+    rep_dir = dirname(filename) # report dir
+    lib_dir = pathjoin(dirname(__file__), 'html_template')  # lib dir
+
+    if not os.path.exists(dirname(filename)):
+        os.makedirs(dirname(filename))
+
+    reportxml(pathjoin(rep_dir, 'data.xml'))
+
+    for f in ['index.html', 'jquery.js', 'jquery.base64.min.js', 'flytest.css']:
+        cont = open(pathjoin(lib_dir, f)).read()
+        if f == 'index.html':
+            f = os.path.basename(filename)
+        open(pathjoin(rep_dir, f), 'w').write(cont)
+    #return report(filename, '.html', html)
+
+def reportxml(filename = None):
+    ''' generate xml '''
+    doc = Document()
+
+    def addNode(root, name, text):
+        ptext = doc.createTextNode(str(text))
+        node  = doc.createElement(name)
+        node.appendChild(ptext)
+        root.appendChild(node)
+
+
+    nr_succ = 0; nr_fail = 0; nr_tot = 0
+    for status, info in records:
+        if status == 0:     nr_succ += 1
+        else:               nr_fail += 1
+    nr_tot = nr_succ + nr_fail
+
+    # create the root node
+    report = doc.createElement('report')
+    doc.appendChild(report)
+    
+    begin_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(begin_time))
+    runtime = time.gmtime(time.time() - begin_time)
+    spare_time = '{0} hours, {1} minites, {2} seconds'.format(runtime.tm_hour, runtime.tm_min, runtime.tm_sec)
+    if nr_tot == 0:
+        pass_percent = 0
+    else:
+        pass_percent = round(float(nr_succ) / nr_tot * 100, 1)
+
+    addNode(report, 'pass_percent', pass_percent)
+    addNode(report, 'result', '{0} PASS / {1} TOTAL'.format(nr_succ, nr_tot))
+    addNode(report, 'totalNum', nr_tot)
+    addNode(report, 'begin_time', begin_time_str)
+    addNode(report, 'spare_time', spare_time)
+    addNode(report, 'pass_cnt', nr_succ)
+    addNode(report, 'fail_cnt', nr_fail)
+
+    
+    cases = doc.createElement('cases')
+    report.appendChild(cases)
+
+    for status, info in records:
+        case = doc.createElement('case')
+
+        name = os.path.basename(info.get('name'))
+        id = re.match('^(\d+)', name)
+        if id: id = id.group(1)
+        else:  id = 'unknown'
+        if not id.isdigit(): id = '?'
+
+        addNode(case, 'id', id)
+        addNode(case, 'name', name) #info.get('name', ''))
+        addNode(case, 'file_content', b64encode(info.get('file_content')) )
+        addNode(case, 'status', str(status))
+        addNode(case, 'result', info.get('result', ''))
+        addNode(case, 'stdout', b64encode(info.get('stdout', '')))
+        addNode(case, 'stderr', b64encode(info.get('stderr', '')))
+        cases.appendChild(case)
+
+    xml =  doc.toprettyxml(indent="\t")
+    return reportfile(filename, '.xml', xml)
+
+def init_signal():
+    def sigint_handler(signum, stack_frame):
+        print '   [!!! autofly catch int signal, try to exit]'
+        sys.exit(1)
+    signal.signal(signal.SIGINT, sigint_handler)
+    signal.signal(signal.SIGQUIT, sigint_handler)
+    signal.signal(signal.SIGHUP, sigint_handler)
+    signal.signal(signal.SIGTERM, sigint_handler)
+
+
+def run_all_tests(casefiles, count = 1):
+    print ' autofly '.center(70, '=')
+    print 'python version', platform.python_version()
+    print 'case count:', len(casefiles)
+    print 'start time:', time.ctime()
+    print ' start to run case '.center(70, '=')
+
+    q = Queue()
+    for file in casefiles:
+        q.put(file)
+
+    def run_case_file(q):
+        while True: 
+            try:
+                file = q.get_nowait()
+                if os.path.exists(file):   runtest(file)
+                else:   print sys.stderr, '[WARN] {0} not exist'.format(file)
+            except:
+                break
+
+    # run multi case
+    ths = []
+    for i in range(0, count):
+        t = threading.Thread(target = run_case_file, args=(q,))
+        t.setDaemon(True)
+        t.start()
+        ths.append(t)
+
+    # join will cause signal not catched 
+    alive = True
+    while alive:
+        alive = False
+        for t in ths:  
+            if t.isAlive(): alive = True; break
+        if alive: time.sleep(0.1)
+    
+
+if __name__ == "__main__":
+    init_signal()
+    if len(sys.argv) <= 1:  # no argument
+        usage_and_exit()
+
+    thread_count = 1
+    # health check
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], 'c:df:t:E:X:H:', \
+                ['debug', 'output-xml=', 'output-html=', 'color=', 'file='])
+        for k,v in opts:
+            if   k == '-d' or k == '--debug': 
+                debug = True
+            if   k == '-t':
+                thread_count = int(v)
+            elif k in ('-E', '--email'):
+                email = v
+            elif k in ('-l', '--log'):
+                logdir = v
+            elif k in ('-X', '--output-xml'):
+                xmlfile = v
+            elif k in ('-H', '--output-html'):
+                htmlfile = v
+            elif k in ('-c', '--color'):
+                if v == 'auto': color_flag = 'auto'
+                else:           color_flag = None
+            elif k in ('-f', '--file'):
+                caselist_file = v
+    except getopt.GetoptError:
+        usage_and_exit(1)
+
+    #
+    # debug setting
+    #
+    if debug == True:            os.putenv('DEBUG', 'true');
+
+    #
+    # initial log dir
+    # 
+    if logdir and not os.path.exists(logdir):
+        os.mkdir(logdir)
+
+    # get case files
+    casefiles = []
+    if caselist_file:
+        for file in open(caselist_file):
+            file = file.strip()
+            if file: casefiles.append(file)
+
+    def fhandler(fullname):
+        basename = os.path.basename(fullname)
+        #print basename
+        if re.match('^\d+.*\.py$', basename):
+            return True
+        return False
+
+    for path in args:
+        for file in getfiles(path, file_handler = fhandler):
+            casefiles.append(file)
+
+    # uniq
+    casefiles = {}.fromkeys(casefiles).keys()
+    # sort
+    casefiles.sort()
+
+    #sys.exit(0)
+    run_all_tests(casefiles, thread_count)
+
+    nr_succ = 0; nr_fail = 0
+    for r in records:
+        if r[0] == 0:   nr_succ += 1
+        else:           nr_fail += 1
+    print 'Succ: %2d, Fail: %2d' %(nr_succ, nr_fail)
+
+    if xmlfile != None:
+        print '[INFO] output xmlfile %s' %(xmlfile)
+        reportxml(xmlfile)
+    if htmlfile != None:
+        print '[INFO] output htmlfile %s' %(htmlfile)
+        reporthtml(htmlfile)
+
+    exitcode = nr_fail
+    if exitcode > 125: exitcode = 125
+    sys.exit(exitcode)
+

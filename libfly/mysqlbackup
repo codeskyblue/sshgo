@@ -1,0 +1,46 @@
+#!/bin/sh - 
+#
+# easy import and export
+#
+# Usage:
+#      mysqlbackup  dbname
+
+PROGRAM=$(basename $0)
+mysql=mysql
+mysqldump=mysqldump
+username=noah
+password=noah
+
+MYSQLFLAGS="-u$username -p$password"
+MYSQLDUMPFLAGS=$MYSQLFLAGS
+
+if test $# -ne 2
+then
+    echo "Usage: $PROGRAM <import (file.sql)|export (dbname) | structure (dbname)>"
+    echo "      structure only contains table structure, no data."
+    echo "-------"
+    echo "show databases;" | $mysql $MYSQLFLAGS
+    echo "-------"
+else
+    case $1 in
+    s|struc|structure)
+        outfile=$2.nodata.$(date "+%Y-%m-%d").sql
+        $mysqldump $MYSQLDUMPFLAGS --no-data $2 > $outfile
+        test $? -ne 0 &&  /bin/rm $outfile
+        ;;
+    e|ex|exp|export) 
+        outfile=$2.$(date "+%Y-%m-%d").sql
+        $mysqldump -u$username -p$password $2 > $outfile
+        test $? -ne 0 &&  /bin/rm $outfile
+        ;;
+    i|im|imp|import)
+        test -f $2 || (echo "file $2 not exist" ;  exit 1)
+        dbname=$(basename $2 | sed 's/\..*$//')
+        echo $dbname
+        echo "DROP DATABASE IF EXISTS $dbname; CREATE DATABASE $dbname;" | $mysql $MYSQLFLAGS
+        $mysql $MYSQLFLAGS $dbname < $2
+        ;;
+    *)  echo "not an option" ;;
+    esac
+fi
+
