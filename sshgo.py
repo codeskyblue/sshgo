@@ -23,7 +23,22 @@ opts = parser.parse_args()
 if opts.debug:
 	print 'DEBUG [ON]'
 
-selfdir = os.path.dirname(os.path.abspath(__file__))
+
+def dirname(path):
+    dir = os.path.dirname(path)
+    if dir == "": dir = '.'
+    return dir
+
+def readlinkf(link_file):
+    ''' return absolupath of link file destination '''
+    if not os.path.islink(link_file): return link_file
+    p = os.readlink(link_file)
+    if not os.path.isabs(p):
+        p = os.path.join(dirname(link_file), p)
+    return readlinkf(p)
+
+selfdir = os.path.dirname(readlinkf(__file__))
+
 hosts = []
 hsets = {}
 
