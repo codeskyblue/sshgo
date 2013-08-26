@@ -16,6 +16,7 @@ default_password = ''
 parser = argparse.ArgumentParser(description = "sshgo ~ jump through machines")
 parser.add_argument('-u', dest='user', help='specify user', default='work', action='store')
 parser.add_argument('-d', dest='debug', help='debug on/off', default=False, action='store_true')
+parser.add_argument('-t', dest='test', help='only show hostname, no use ssh', default=False, action='store_true')
 parser.add_argument(dest='host', help='hostname', nargs=1)
 parser.add_argument(dest='args', help='arguments', nargs='*')
 
@@ -115,8 +116,11 @@ else:
 	username, password = hsets[host]
 	if opts.user:
 		username = opts.user
-	os.environ['SSHPASS'] = password
-	params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
-	params.extend(opts.args)
-	os.system(' '.join(params))
+	if opts.test:
+		print host
+	else:
+		os.environ['SSHPASS'] = password
+		params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
+		params.extend(opts.args)
+		os.system(' '.join(params))
 
