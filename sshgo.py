@@ -119,8 +119,10 @@ else:
 	if opts.test:
 		print host
 	else:
+		if opts.debug:
+			print 'user:%s passwd:%s' %(username, password)
 		os.environ['SSHPASS'] = password
-		params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
+		params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'ConnectTimeout=1', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
 		params.extend(opts.args)
 		os.system(' '.join(params))
 
