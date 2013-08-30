@@ -8,13 +8,16 @@ import os
 import sys
 import argparse
 import dict4ini
+import sshpass
 
 default_username = ''
 default_password = ''
 
 # parse arguments
 parser = argparse.ArgumentParser(description = "sshgo ~ jump through machines")
-parser.add_argument('-u', dest='user', help='specify user', default='work', action='store')
+parser.add_argument('--pexpect', dest='pexpect', help='use inside pexpect instead of sshpass', default=False, action='store_true')
+parser.add_argument('-e', dest='edit', help='edit sshgo.ini with VIM', default=False, action='store_true')
+parser.add_argument('-u', dest='user', help='specify user', default='', action='store')
 parser.add_argument('-d', dest='debug', help='debug on/off', default=False, action='store_true')
 parser.add_argument('-t', dest='test', help='only show hostname, no use ssh', default=False, action='store_true')
 parser.add_argument(dest='host', help='hostname', nargs=1)
@@ -39,12 +42,17 @@ def readlinkf(link_file):
     return readlinkf(p)
 
 selfdir = os.path.dirname(readlinkf(__file__))
+__conf__ = os.path.join(selfdir, 'sshgo.ini')
+
+if opts.edit:
+	os.system('vim ' + __conf__)
+	sys.exit(0)
 
 hosts = []
 hsets = {}
 
 try:
-	ini = dict4ini.DictIni(os.path.join(selfdir, 'sshgo.ini'))
+	ini = dict4ini.DictIni(__conf__)
 except Exception, e:
 	print e
 	sys.exit(1)
@@ -121,8 +129,15 @@ else:
 	else:
 		if opts.debug:
 			print 'user:%s passwd:%s' %(username, password)
-		os.environ['SSHPASS'] = password
-		params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'ConnectTimeout=1', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
-		params.extend(opts.args)
-		os.system(' '.join(params))
+		if opts.pexpect:
+			sshpass.setpassword('ssh_py_default', username, password)
+			sshpass.ssh(username, host, args = opts.args)
+		else:
+			os.environ['SSHPASS'] = password
+			params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'ConnectTimeout=1', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]
+			params.extend(opts.args)
+			cmdstr = ' '.join(params)
+			if opts.debug:
+				print cmdstr
+			os.system(cmdstr)
 
