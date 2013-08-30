@@ -3,6 +3,10 @@
 * Created:    2013-01-09
 * By:         Shengxiang Sun
 
+## How to Build
+* install python2.7
+* install pexpect
+* install py
 ## Structure ##
 
     bin
