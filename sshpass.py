@@ -5,22 +5,7 @@ import getpass
 import optparse
 import os
 import sys
-
-import keyring
 import pexpect
-
-def getpassword(service, username):
-    ''' Get password from keychain '''
-    
-    password = keyring.get_password(service, username)
-
-    while not password:
-        # ask and save a password.
-        password = getpass.getpass("password: ")
-        if not password:
-            print "Please enter a password"
-
-    return password
 
 def gettermsize():
     ''' horrible non-portable hack to get the terminal size to transmit
@@ -30,19 +15,8 @@ def gettermsize():
     cols = int(cols)
     return (rows, cols)
 
-def setpassword(keychainservice, username, password):
-    ''' Save password in keychain '''
-
-    if not keyring.get_password(keychainservice, username):
-        print>>sys.stderr,  "Successful login - saving password for user %s under keychain service '%s'" % (username, keychainservice)
-        keyring.set_password(keychainservice, username, password)
-
-    
-def ssh(username, host, keychainservice="ssh_py_default", port=22, args = []):
+def ssh(username, password, host, port=22, args = []):
     ''' Automate sending password when the server has public key auth disabled '''
-
-    password = getpassword(keychainservice, username)
-
     print>>sys.stderr,  "Connecting to %s@%s" % (username, host)
 
     cmd = "/usr/bin/ssh -p%d %s@%s %s" % (port, username, host, ' '.join(args))
@@ -68,12 +42,6 @@ def ssh(username, host, keychainservice="ssh_py_default", port=22, args = []):
     print>>sys.stderr, "Sending password"
     child.sendline(password)
 
-    if len(args) == 0:
-        # assume we see a shell prompt ending in $ to denote successful login:
-        print>>sys.stderr,  "Waiting for $ shell prompt terminator to confirm login..."
-        if child.expect(r'\$') == 0:
-            setpassword(keychainservice, username, password)
-            child.sendline()
     # give control to the human.
     child.interact()
 

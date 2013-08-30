@@ -130,8 +130,7 @@ else:
 		if opts.debug:
 			print 'user:%s passwd:%s' %(username, password)
 		if opts.pexpect:
-			sshpass.setpassword('ssh_py_default', username, password)
-			sshpass.ssh(username, host, args = opts.args)
+			sshpass.ssh(username, password, host, args = opts.args)
 		else:
 			os.environ['SSHPASS'] = password
 			params = ['exec', 'sshpass', '-e', 'ssh', '-o', 'ConnectTimeout=1', '-o', 'StrictHostKeyChecking=no', '%s@%s'%(username, host)]

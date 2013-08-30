@@ -6,9 +6,8 @@
 first install python2.7, clone files to local
 
 * easy\_install pexpect
-* easy\_install keyring
 
-use `sh build.sh` to get dist file(sshgo)
+use `sh make.bash` to get dist file(sshgo)
 
 ## Config File
 default is a key word. store default username and password
